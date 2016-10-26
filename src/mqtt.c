@@ -229,9 +229,9 @@ mqtt_init(mrb_state *mrb, mrb_value self)
 {
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "address"), mrb_nil_value());
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "client_id"), mrb_nil_value());
-  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "keep_alive"), 
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "keep_alive"),
 	     mrb_fixnum_value(20));
-  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "request_timeout"), 
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "request_timeout"),
 	     mrb_fixnum_value(1000));
 
   DATA_PTR(self) = NULL;
@@ -298,7 +298,7 @@ mqtt_request_timeout(mrb_state *mrb, mrb_value self)
 
 // exp: self.request_timeout = 60
 mrb_value
-mqtt_set_request_timeout(mrb_state *mrb, mrb_value self) 
+mqtt_set_request_timeout(mrb_state *mrb, mrb_value self)
 {
   mrb_value timeout_sec;
   mrb_get_args(mrb, "o", &timeout_sec);
@@ -334,21 +334,21 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
   char *c_client_id = mrb_str_to_cstr(mrb, m_client_id);
   int rc;
 
-  MQTTAsync_create(&client, c_address, c_client_id, 
+  MQTTAsync_create(&client, c_address, c_client_id,
 		   MQTTCLIENT_PERSISTENCE_NONE, NULL);
 
   MQTTAsync_setCallbacks(client, NULL, mqtt_connlost, mqtt_msgarrvd, NULL);
 
   conn_opts.keepAliveInterval = c_keep_alive;
   conn_opts.cleansession = clean_session_c(mrb, self);
-  conn_opts.onSuccess = mqtt_on_connect;
-  conn_opts.onFailure = mqtt_on_connect_failure;
+  conn_opts.onSuccess = NULL; //mqtt_on_connect;
+  conn_opts.onFailure = NULL; //mqtt_on_connect_failure;
   conn_opts.context = client;
 
   if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
     mrb_raise(mrb, E_MQTT_CONNECTION_FAILURE_ERROR, "connection failure");
   }
- 
+
   mqtt_state *mqtt_state_p;
   mqtt_state_p = mrb_malloc(mrb, sizeof(mqtt_state));
   mqtt_state_p->mrb = mrb;
@@ -366,11 +366,11 @@ mqtt_disconnect(mrb_state *mrb, mrb_value self)
   mqtt_state *m = DATA_PTR(_self);
   check_mqtt_connected(mrb, m);
 
-  int rc;  
+  int rc;
   MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
-  opts.onSuccess = mqtt_on_disconnect;
+  opts.onSuccess = NULL; //mqtt_on_disconnect;
   opts.context = m->client;
-  
+
   if ((rc = MQTTAsync_disconnect(m->client, &opts)) != MQTTASYNC_SUCCESS) {
     mrb_raise(mrb, E_MQTT_DISCONNECT_ERROR, "disconnect failure");
   }
@@ -396,7 +396,7 @@ mqtt_publish(mrb_state *mrb, mrb_value self)
   char *topic_p = mrb_str_to_cstr(mrb, topic);
   char *payload_p = mrb_str_to_cstr(mrb, payload);
 
-  opts.onSuccess = mqtt_on_publish;
+  opts.onSuccess = NULL; //mqtt_on_publish;
   opts.context = m->client;
 
   pubmsg.payload = payload_p;
@@ -421,13 +421,13 @@ mqtt_subscribe(mrb_state *mrb, mrb_value self)
   mrb_value topic;
   mrb_int qos;
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-  opts.onSuccess = mqtt_on_subscribe;
-  opts.onFailure = mqtt_on_subscribe_failure;
+  opts.onSuccess = NULL; //mqtt_on_subscribe;
+  opts.onFailure = NULL; //mqtt_on_subscribe_failure;
   opts.context = m->client;
 
   mrb_get_args(mrb, "oi", &topic, &qos);
   char *topic_p = mrb_str_to_cstr(mrb, topic);
-  
+
   if ((rc = MQTTAsync_subscribe(m->client, topic_p, qos, &opts)) != MQTTASYNC_SUCCESS) {
     mrb_raise(mrb, E_MQTT_SUBSCRIBE_ERROR, "subscribe failure");
   }
