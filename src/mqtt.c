@@ -149,75 +149,92 @@ mqtt_msgarrvd(void *context, char *topicName, int topicLen,
 void
 mqtt_connlost(void *context, char *cause)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
-
-  mrb_sym cause_sym = mrb_intern_cstr(m->mrb, cause);
   mqtt_connected = FALSE;
-  mrb_funcall(m->mrb, m->self, "connlost_callback", 1, cause_sym);
-  mrb_free(m->mrb, m);
-  DATA_PTR(_self) = NULL;
+  return;
+
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mrb_sym cause_sym = mrb_intern_cstr(m->mrb, cause);
+  // mqtt_connected = FALSE;
+  // mrb_funcall(m->mrb, m->self, "connlost_callback", 1, cause_sym);
+  // mrb_free(m->mrb, m);
+  // DATA_PTR(_self) = NULL;
 }
 
 void
 mqtt_on_disconnect(void* context, MQTTAsync_successData* response)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
-
   mqtt_connected = FALSE;
-  mrb_funcall(m->mrb, m->self, "on_disconnect_callback", 0);
-  mrb_free(m->mrb, m);
-  DATA_PTR(_self) = NULL;
+  return;
+
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mqtt_connected = FALSE;
+  // mrb_funcall(m->mrb, m->self, "on_disconnect_callback", 0);
+  // mrb_free(m->mrb, m);
+  // DATA_PTR(_self) = NULL;
 }
 
 void
 mqtt_on_subscribe(void* context, MQTTAsync_successData* response)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
+  return;
 
-  mrb_funcall(m->mrb, m->self, "on_subscribe_callback", 0);
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mrb_funcall(m->mrb, m->self, "on_subscribe_callback", 0);
 }
 
 void
 mqtt_on_subscribe_failure(void* context, MQTTAsync_failureData* response)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
+  return;
 
-  mrb_funcall(m->mrb, m->self, "on_subscribe_failure_callback", 0);
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mrb_funcall(m->mrb, m->self, "on_subscribe_failure_callback", 0);
 }
 
 void
 mqtt_on_publish(void* context, MQTTAsync_successData* response)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
+  return;
 
-  mrb_funcall(m->mrb, m->self, "on_publish_callback", 0);
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mrb_funcall(m->mrb, m->self, "on_publish_callback", 0);
 }
 
 void
 mqtt_on_connect_failure(void* context, MQTTAsync_failureData* response)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
+  return;
 
-  mrb_funcall(m->mrb, m->self, "on_connect_failure_callback", 0);
-  mrb_free(m->mrb, m);
-  DATA_PTR(_self) = NULL;
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mrb_funcall(m->mrb, m->self, "on_connect_failure_callback", 0);
+  // mrb_free(m->mrb, m);
+  // DATA_PTR(_self) = NULL;
 }
 
 
 void
 mqtt_on_connect(void* context, MQTTAsync_successData* response)
 {
-  mqtt_state *m = DATA_PTR(_self);
-  if (m == NULL) return;
-
   mqtt_connected = TRUE;
-  mrb_funcall(m->mrb, m->self, "on_connect_callback", 0);
+  return;
+
+  // mqtt_state *m = DATA_PTR(_self);
+  // if (m == NULL) return;
+
+  // mqtt_connected = TRUE;
+  // mrb_funcall(m->mrb, m->self, "on_connect_callback", 0);
 }
 
 /*******************************************************************
@@ -341,8 +358,8 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
 
   conn_opts.keepAliveInterval = c_keep_alive;
   conn_opts.cleansession = clean_session_c(mrb, self);
-  conn_opts.onSuccess = NULL; //mqtt_on_connect;
-  conn_opts.onFailure = NULL; //mqtt_on_connect_failure;
+  conn_opts.onSuccess = mqtt_on_connect;
+  conn_opts.onFailure = mqtt_on_connect_failure;
   conn_opts.context = client;
 
   if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
@@ -368,7 +385,7 @@ mqtt_disconnect(mrb_state *mrb, mrb_value self)
 
   int rc;
   MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
-  opts.onSuccess = NULL; //mqtt_on_disconnect;
+  opts.onSuccess = mqtt_on_disconnect;
   opts.context = m->client;
 
   if ((rc = MQTTAsync_disconnect(m->client, &opts)) != MQTTASYNC_SUCCESS) {
@@ -396,7 +413,7 @@ mqtt_publish(mrb_state *mrb, mrb_value self)
   char *topic_p = mrb_str_to_cstr(mrb, topic);
   char *payload_p = mrb_str_to_cstr(mrb, payload);
 
-  opts.onSuccess = NULL; //mqtt_on_publish;
+  opts.onSuccess = mqtt_on_publish;
   opts.context = m->client;
 
   pubmsg.payload = payload_p;
@@ -421,8 +438,8 @@ mqtt_subscribe(mrb_state *mrb, mrb_value self)
   mrb_value topic;
   mrb_int qos;
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-  opts.onSuccess = NULL; //mqtt_on_subscribe;
-  opts.onFailure = NULL; //mqtt_on_subscribe_failure;
+  opts.onSuccess = mqtt_on_subscribe;
+  opts.onFailure = mqtt_on_subscribe_failure;
   opts.context = m->client;
 
   mrb_get_args(mrb, "oi", &topic, &qos);
