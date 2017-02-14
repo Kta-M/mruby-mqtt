@@ -306,6 +306,74 @@ mqtt_set_keep_alive(mrb_state *mrb, mrb_value self)
   return keep_alive;
 }
 
+// exp: self.trust_store #=> "path/to/trust_store"
+mrb_value
+mqtt_trust_store(mrb_state *mrb, mrb_value self)
+{
+  return mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "trust_store"));
+}
+
+// exp: self.trust_store = "path/to/trust_store"
+mrb_value
+mqtt_set_trust_store(mrb_state *mrb, mrb_value self)
+{
+  mrb_value trust_store;
+  mrb_get_args(mrb, "o", &trust_store);
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "trust_store"), trust_store);
+  return trust_store;
+}
+
+// exp: self.key_store #=> "path/to/key_store"
+mrb_value
+mqtt_key_store(mrb_state *mrb, mrb_value self)
+{
+  return mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "key_store"));
+}
+
+// exp: self.key_store = "path/to/key_store"
+mrb_value
+mqtt_set_key_store(mrb_state *mrb, mrb_value self)
+{
+  mrb_value key_store;
+  mrb_get_args(mrb, "o", &key_store);
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "key_store"), key_store);
+  return key_store;
+}
+
+// exp: self.private_key #=> "path/to/private_key"
+mrb_value
+mqtt_private_key(mrb_state *mrb, mrb_value self)
+{
+  return mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "private_key"));
+}
+
+// exp: self.private_key = "path/to/private_key"
+mrb_value
+mqtt_set_private_key(mrb_state *mrb, mrb_value self)
+{
+  mrb_value private_key;
+  mrb_get_args(mrb, "o", &private_key);
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "private_key"), private_key);
+  return private_key;
+}
+
+// exp: self.private_key_password #=> "password"
+mrb_value
+mqtt_private_key_password(mrb_state *mrb, mrb_value self)
+{
+  return mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "private_key_password"));
+}
+
+// exp: self.private_key_password = "password"
+mrb_value
+mqtt_set_private_key_password(mrb_state *mrb, mrb_value self)
+{
+  mrb_value private_key_password;
+  mrb_get_args(mrb, "o", &private_key_password);
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "private_key_password"), private_key_password);
+  return private_key_password;
+}
+
 // exp: self.request_timeout #=> 10
 mrb_value
 mqtt_request_timeout(mrb_state *mrb, mrb_value self)
@@ -346,9 +414,19 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
   mrb_value m_address = mqtt_address(mrb, self);
   mrb_value m_client_id = mqtt_client_id(mrb, self);
   mrb_value m_keep_alive = mqtt_keep_alive(mrb, self);
+  mrb_value m_trust_store = mqtt_trust_store(mrb, self);
+  mrb_value m_key_store = mqtt_key_store(mrb, self);
+  mrb_value m_private_key = mqtt_private_key(mrb, self);
+  mrb_value m_private_key_password = mqtt_private_key_password(mrb, self);
+
   mrb_int c_keep_alive = (mrb_int)mrb_fixnum(m_keep_alive);
   char *c_address = mrb_str_to_cstr(mrb, m_address);
   char *c_client_id = mrb_str_to_cstr(mrb, m_client_id);
+  char *c_trust_store = mrb_str_to_cstr(mrb, m_trust_store);
+  char *c_key_store = mrb_str_to_cstr(mrb, m_key_store);
+  char *c_private_key = mrb_str_to_cstr(mrb, m_private_key);
+  char *c_private_key_password = mrb_str_to_cstr(mrb, m_private_key_password);
+
   int rc;
 
   MQTTAsync_create(&client, c_address, c_client_id,
@@ -361,6 +439,13 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
   conn_opts.onSuccess = mqtt_on_connect;
   conn_opts.onFailure = mqtt_on_connect_failure;
   conn_opts.context = client;
+
+  MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
+  ssl_opts.trustStore = c_trust_store;
+  ssl_opts.keyStore = c_key_store;
+  ssl_opts.privateKey = c_private_key;
+  ssl_opts.privateKeyPassword = c_private_key_password;
+  conn_opts.ssl = &ssl_opts;
 
   if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
     mrb_raise(mrb, E_MQTT_CONNECTION_FAILURE_ERROR, "connection failure");
@@ -482,6 +567,14 @@ mrb_mruby_mqtt_gem_init(mrb_state* mrb)
   mrb_define_method(mrb, c, "client_id=", mqtt_set_client_id, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, c, "keep_alive", mqtt_keep_alive, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "keep_alive=", mqtt_set_keep_alive, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, c, "trust_store", mqtt_trust_store, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "trust_store=", mqtt_set_trust_store, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, c, "key_store", mqtt_key_store, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "key_store=", mqtt_set_key_store, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, c, "private_key", mqtt_private_key, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "private_key=", mqtt_set_private_key, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, c, "private_key_password", mqtt_private_key_password, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "private_key_password=", mqtt_set_private_key_password, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, c, "request_timeout", mqtt_request_timeout, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "request_timeout=", mqtt_set_request_timeout, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "connect", mqtt_connect, MRB_ARGS_NONE());
