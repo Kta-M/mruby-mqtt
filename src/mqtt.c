@@ -249,7 +249,7 @@ mqtt_init(mrb_state *mrb, mrb_value self)
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "keep_alive"),
 	     mrb_fixnum_value(20));
   mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "request_timeout"),
-	     mrb_fixnum_value(1000));
+	     mrb_fixnum_value(30));
 
   DATA_PTR(self) = NULL;
   return self;
@@ -439,6 +439,7 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
   conn_opts.onSuccess = mqtt_on_connect;
   conn_opts.onFailure = mqtt_on_connect_failure;
   conn_opts.context = client;
+  conn_opts.connectTimeout = mrb_fixnum(mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "request_timeout")));
 
   MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
   ssl_opts.trustStore = c_trust_store;
