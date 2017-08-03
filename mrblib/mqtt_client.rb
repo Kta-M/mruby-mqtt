@@ -50,6 +50,7 @@ class MQTTClient
       client.client_id = client_id
       block.call(client) if block_given?
       client.connect
+      client.wait_for_completions
       return client
     end
   end
@@ -144,9 +145,19 @@ class MQTTClient
     @on_publish.call if @on_publish
   end
 
+  def on_publish_failure_callback
+    debug_out "on_publish_failure_callback"
+    @on_publish_failure if @on_publish_failure
+  end
+
   def on_disconnect_callback
     debug_out "on_disconnect_callback"
     @on_disconnect.call if @on_disconnect
+  end
+
+  def on_disconnect_failure_callback
+    debug_out "on_disconnect_failue_callback"
+    @on_disconnect_failue.call if @on_disconnect_failue
   end
 
   def connlost_callback(cause)
@@ -158,6 +169,16 @@ class MQTTClient
       sleep reconnect_interval
       connect
     end
+  end
+
+  def wait_for_completions(timeout = self.wait_interval)
+    start_time = Time.now
+    while Time.now < (start_time + timeout)
+      self.process_queue
+      return true if tokens.empty?
+      wait_for_completion(tokens.first, wait_interval)
+    end
+    false
   end
 
   private

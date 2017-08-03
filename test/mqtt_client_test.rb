@@ -39,12 +39,12 @@ assert("MQTTClient.connect") do
 
   m = MQTTClient.instance
 
-  Sleep.sleep 1
+  m.wait_for_completions 1
   assert_equal 1, subscribe_count
   assert_equal 6, publish_count
   assert_equal 2, get_message_count
   assert_equal true, m.disconnect
-  Sleep.sleep 5 # wait disconnect callback.
+  m.wait_for_completions 5 # wait disconnect callback.
 end
 
 assert("MQTTClient#publish with invalid QoS") do
