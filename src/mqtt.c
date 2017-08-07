@@ -527,7 +527,7 @@ mqtt_connected(mrb_value self) {
 static mrb_value
 mqtt_is_connected(mrb_state *mrb, mrb_value self)
 {
-  return mrb_bool_value(DATA_PTR(self) && MQTTAsync_isConnected(((mqtt_state*)DATA_PTR(self))->client));
+  return mrb_bool_value(mqtt_connected(self));
 }
 
 static void
@@ -694,10 +694,19 @@ mqtt_process_queue(mrb_state *mrb, mrb_value self)
 {
   mqtt_state *m = (mqtt_state*)DATA_PTR(self);
   int i;
+  mqtt_queue_item *data;
+  int data_count;
 
+  // swap queue
   Thread_lock_mutex(m->queue_lock);
-  for (i = 0; i < m->queue_size; ++i) {
-    mqtt_queue_item *item = &m->queue_data[i];
+  data = m->queue_data;
+  data_count = m->queue_size;
+  m->queue_data = malloc(0);
+  m->queue_size = 0;
+  Thread_unlock_mutex(m->queue_lock);
+
+  for (i = 0; i < data_count; ++i) {
+    mqtt_queue_item *item = data + i;
     mrb_value msg;
     switch(item->tag) {
       case MQTT_MESSAGE_ARRIVED:
@@ -758,9 +767,8 @@ mqtt_process_queue(mrb_state *mrb, mrb_value self)
       default: mrb_assert(FALSE);
     }
   }
-  m->queue_data = realloc(m->queue_data, 0);
-  m->queue_size = 0;
-  Thread_unlock_mutex(m->queue_lock);
+  free(data);
+
   return self;
 }
 
@@ -864,11 +872,11 @@ mrb_mruby_mqtt_gem_init(mrb_state* mrb)
   mrb_define_method(mrb, c, "private_key_password=", mqtt_set_private_key_password, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, c, "request_timeout", mqtt_request_timeout, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "request_timeout=", mqtt_set_request_timeout, MRB_ARGS_NONE());
-  mrb_define_method(mrb, c, "connect", mqtt_connect, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "_connect", mqtt_connect, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "connected?", mqtt_is_connected, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "publish_internal", mqtt_publish, MRB_ARGS_REQ(4));
   mrb_define_method(mrb, c, "subscribe_internal", mqtt_subscribe, MRB_ARGS_REQ(2));
-  mrb_define_method(mrb, c, "disconnect", mqtt_disconnect, MRB_ARGS_NONE());
+  mrb_define_method(mrb, c, "_disconnect", mqtt_disconnect, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "tokens", mqtt_tokens, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "wait_interval", mqtt_wait_interval, MRB_ARGS_NONE());
   mrb_define_method(mrb, c, "wait_interval=", mqtt_set_wait_interval, MRB_ARGS_REQ(1));

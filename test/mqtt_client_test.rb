@@ -41,12 +41,12 @@ assert("MQTTClient.connect") do
 
   m = MQTTClient.instance
 
-  m.wait_for_completions 1
+  m.wait_for_completions 0.5
   assert_equal 1, subscribe_count
   assert_equal 6, publish_count
   assert_equal 2, get_message_count
   assert_equal true, m.disconnect
-  m.wait_for_completions 1 # wait disconnect callback.
+  m.wait_for_completions 0.5 # wait disconnect callback.
   assert_false m.connected?
 end
 
