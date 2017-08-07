@@ -194,8 +194,11 @@ class MQTTClient
   def wait_for_completions(timeout = self.wait_interval)
     start_time = Time.now
 
+    process_queue
+    wait_for_completion(nil, wait_interval)
+
     while (Time.now - start_time) < timeout
-      self.process_queue
+      process_queue
       toks = self.tokens
       return true if toks.empty?
       wait_for_completion(toks.first, wait_interval)
