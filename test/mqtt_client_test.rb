@@ -8,6 +8,8 @@ assert("MQTTClient.connect") do
   publish_count = 0
   get_message_count = 0
 
+  MQTTClient.instance.request_timeout = 1
+
   MQTTClient.connect("tcp://127.0.0.1:1883", "mruby-client") do |c|
     c.on_subscribe = -> { subscribe_count += 1 }
     c.on_publish   = -> { publish_count += 1}
@@ -44,7 +46,8 @@ assert("MQTTClient.connect") do
   assert_equal 6, publish_count
   assert_equal 2, get_message_count
   assert_equal true, m.disconnect
-  m.wait_for_completions 5 # wait disconnect callback.
+  m.wait_for_completions 1 # wait disconnect callback.
+  assert_false m.connected?
 end
 
 assert("MQTTClient#publish with invalid QoS") do

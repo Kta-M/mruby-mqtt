@@ -33,6 +33,9 @@ THE SOFTWARE.
 #include "MQTTAsync.h"
 #include "Thread.h"
 
+extern void MQTTAsync_init();
+extern void MQTTAsync_sleep(long milli_sec);
+
 #define E_MQTT_ALREADY_CONNECTED_ERROR  (mrb_class_get(mrb, "MQTTAlreadyConnectedError"))
 #define E_MQTT_NOT_CONNECTED_ERROR      (mrb_class_get(mrb, "MQTTNotConnectedError"))
 #define E_MQTT_CONNECTION_FAILURE_ERROR (mrb_class_get(mrb, "MQTTConnectionFailureError"))
@@ -74,7 +77,6 @@ typedef struct _mqtt_state {
   mrb_state *mrb;
   mrb_value self;
   MQTTAsync client;
-  mrb_bool connected;
 
   mutex_type queue_lock;
   mrb_int queue_size;
@@ -181,7 +183,7 @@ mqtt_set_msg_payload(mrb_state *mrb, mrb_value message)
 static void
 check_mqtt_connected(mrb_state *mrb, mqtt_state *m)
 {
-  if (m == NULL || !m->connected){
+  if (m == NULL || !MQTTAsync_isConnected(m->client)) {
     mrb_raise(mrb, E_MQTT_NOT_CONNECTED_ERROR, "MQTT not connected");
   }
 }
@@ -221,7 +223,6 @@ mqtt_connlost(void *context, char *cause)
   mqtt_queue_item item;
 
   Thread_lock_mutex(m->queue_lock);
-  m->connected = FALSE;
   item.tag = MQTT_CONNECTION_LOST;
   copy_str(&item.data.cause, cause);
   mqtt_push_to_queue(m, &item);
@@ -236,11 +237,10 @@ mqtt_on_disconnect(void* context, MQTTAsync_successData* response)
   mqtt_queue_item item;
 
   Thread_lock_mutex(m->queue_lock);
-  m->connected = FALSE;
   item.tag = MQTT_ON_DISCONNECT_SUCCESS;
   mrb_assert(!response);
   mqtt_push_to_queue(m, &item);
-  mqtt_unregister_token(m, response->token);
+  // mqtt_unregister_token(m, response->token);
   Thread_unlock_mutex(m->queue_lock);
 }
 
@@ -255,7 +255,7 @@ mqtt_on_disconnect_failure(void* context, MQTTAsync_failureData* response)
   item.data.failure = *response;
   copy_str(&item.data.failure.message, response->message);
   mqtt_push_to_queue(m, &item);
-  mqtt_unregister_token(m, response->token);
+  // mqtt_unregister_token(m, response->token);
   Thread_unlock_mutex(m->queue_lock);
 }
 
@@ -332,7 +332,7 @@ mqtt_on_connect_failure(void* context, MQTTAsync_failureData* response)
   item.data.failure = *response;
   copy_str(&item.data.failure.message, response->message);
   mqtt_push_to_queue(m, &item);
-  mqtt_unregister_token(m, response->token);
+  // mqtt_unregister_token(m, response->token);
   Thread_unlock_mutex(m->queue_lock);
 }
 
@@ -343,12 +343,11 @@ mqtt_on_connect(void* context, MQTTAsync_successData* response)
   mqtt_queue_item item;
 
   Thread_lock_mutex(m->queue_lock);
-  m->connected = TRUE;
   item.tag = MQTT_ON_CONNECT_SUCCESS;
   item.data.success = *response;
   copy_str(&item.data.success.alt.connect.serverURI, response->alt.connect.serverURI);
   mqtt_push_to_queue(m, &item);
-  mqtt_unregister_token(m, response->token);
+  // mqtt_unregister_token(m, response->token);
   Thread_unlock_mutex(m->queue_lock);
 }
 
@@ -522,13 +521,13 @@ mqtt_register_token(mqtt_state *m, MQTTAsync_responseOptions const *opts)
 
 static int
 mqtt_connected(mrb_value self) {
-  return DATA_PTR(self) && ((mqtt_state*)DATA_PTR(self))->connected;
+  return DATA_PTR(self) && MQTTAsync_isConnected(((mqtt_state*)DATA_PTR(self))->client);
 }
 
 static mrb_value
 mqtt_is_connected(mrb_state *mrb, mrb_value self)
 {
-  return mrb_bool_value(DATA_PTR(self) && ((mqtt_state*)DATA_PTR(self))->connected);
+  return mrb_bool_value(DATA_PTR(self) && MQTTAsync_isConnected(((mqtt_state*)DATA_PTR(self))->client));
 }
 
 static void
@@ -552,7 +551,7 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
   mqtt_state *m;
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
-  mrb_value m_address, m_client_id, m_keep_alive, m_trust_store,
+  mrb_value m_trust_store,
             m_key_store, m_private_key, m_private_key_password;
   char *c_address, *c_client_id;
   mrb_int c_keep_alive;
@@ -572,7 +571,6 @@ mqtt_connect(mrb_state *mrb, mrb_value self)
   m->token_count = 0;
   mrb_data_init(self, m, &mqtt_client_type);
 
-  m_address = ;
   m_trust_store = mqtt_trust_store(mrb, self);
   m_key_store = mqtt_key_store(mrb, self);
   m_private_key = mqtt_private_key(mrb, self);
@@ -619,11 +617,13 @@ mqtt_disconnect(mrb_state *mrb, mrb_value self)
   mqtt_state *m = DATA_PTR(self);
   int rc;
   MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+
   check_mqtt_connected(mrb, m);
 
   opts.onSuccess = mqtt_on_disconnect;
   opts.onFailure = mqtt_on_disconnect_failure;
   opts.context = m;
+  opts.timeout = mrb_fixnum(mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "request_timeout")));
 
   if ((rc = MQTTAsync_disconnect(m->client, &opts)) != MQTTASYNC_SUCCESS) {
     mrb_raise(mrb, E_MQTT_DISCONNECT_ERROR, "disconnect failure");
@@ -672,6 +672,7 @@ mqtt_subscribe(mrb_state *mrb, mrb_value self)
   mrb_int qos;
   char *topic_p;
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+
   check_mqtt_connected(mrb, m);
 
   opts.onSuccess = mqtt_on_subscribe;
@@ -767,8 +768,15 @@ static mrb_value
 mqtt_wait_for_completion(mrb_state *mrb, mrb_value self)
 {
   mqtt_state *m = (mqtt_state*)DATA_PTR(self);
+  mrb_value v_token;
   mrb_int token;
   mrb_float timeout;
+
+  mrb_get_args(mrb, "of", &v_token, &timeout);
+  if (mrb_nil_p(v_token)) {
+    MQTTAsync_sleep(timeout * 1000);
+    return mrb_nil_value();
+  }
 
   mrb_get_args(mrb, "if", &token, &timeout);
   return mrb_bool_value(
@@ -810,7 +818,6 @@ mqtt_tokens(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_bool mqtt_initialized = FALSE;
-void MQTTAsync_init();
 
 void
 mrb_mruby_mqtt_gem_init(mrb_state* mrb)

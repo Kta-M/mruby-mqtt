@@ -49,9 +49,14 @@ class MQTTClient
       client.address = address
       client.client_id = client_id
       block.call(client) if block_given?
+
       client.connect
-      client.wait_for_completions
-      return client
+      start_time = Time.now
+      while (Time.now - start_time) < client.request_timeout
+        client.wait_for_completion nil, client.wait_interval
+        return client if client.connected?
+      end
+      raise 'connect timeout'
     end
   end
 
@@ -173,7 +178,8 @@ class MQTTClient
 
   def wait_for_completions(timeout = self.wait_interval)
     start_time = Time.now
-    while Time.now < (start_time + timeout)
+
+    while (Time.now - start_time) < timeout
       self.process_queue
       return true if tokens.empty?
       wait_for_completion(tokens.first, wait_interval)
