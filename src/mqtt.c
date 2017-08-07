@@ -47,7 +47,6 @@ typedef enum {
   MQTT_MESSAGE_ARRIVED,
   MQTT_DELIVERY_COMPLETE,
   MQTT_CONNECTION_LOST,
-  MQTT_CONNECTED,
   MQTT_ON_CONNECT_SUCCESS,
   MQTT_ON_CONNECT_FAILURE,
   MQTT_ON_DISCONNECT_SUCCESS,
@@ -763,7 +762,6 @@ mqtt_process_queue(mrb_state *mrb, mrb_value self)
         break;
 
       // case MQTT_DELIVERY_COMPLETE:
-      // case MQTT_CONNECTED:
       default: mrb_assert(FALSE);
     }
   }
