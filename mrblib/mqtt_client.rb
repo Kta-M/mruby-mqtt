@@ -35,6 +35,8 @@
 # mqtt = MQTTClient.instance
 # mqtt.publish("/mytopic", "mydata", 1)
 
+class MQTTTimeoutError < StandardError; end
+
 class MQTTClient
   include Singleton
 
@@ -50,8 +52,27 @@ class MQTTClient
       client.client_id = client_id
       block.call(client) if block_given?
       client.connect
-      return client
     end
+  end
+
+  def connect
+    self._connect
+    start_time = Time.now
+    while (Time.now - start_time) < self.request_timeout
+      self.wait_for_completion nil, self.wait_interval
+      return self if self.connected?
+    end
+    raise MQTTTimeoutError, 'connect timeout'
+  end
+
+  def disconnect
+    self._disconnect
+    start_time = Time.now
+    while (Time.now - start_time) < self.request_timeout
+      self.wait_for_completion nil, self.wait_interval
+      return true unless self.connected?
+    end
+    false # raise MQTTTimeoutError, 'disconnect timeout'
   end
 
   def reconnect_interval
@@ -144,9 +165,19 @@ class MQTTClient
     @on_publish.call if @on_publish
   end
 
+  def on_publish_failure_callback
+    debug_out "on_publish_failure_callback"
+    @on_publish_failure if @on_publish_failure
+  end
+
   def on_disconnect_callback
     debug_out "on_disconnect_callback"
     @on_disconnect.call if @on_disconnect
+  end
+
+  def on_disconnect_failure_callback
+    debug_out "on_disconnect_failue_callback"
+    @on_disconnect_failue.call if @on_disconnect_failue
   end
 
   def connlost_callback(cause)
@@ -158,6 +189,21 @@ class MQTTClient
       sleep reconnect_interval
       connect
     end
+  end
+
+  def wait_for_completions(timeout = self.wait_interval)
+    start_time = Time.now
+
+    process_queue
+    wait_for_completion(nil, wait_interval)
+
+    while (Time.now - start_time) < timeout
+      process_queue
+      toks = self.tokens
+      return true if toks.empty?
+      wait_for_completion(toks.first, wait_interval)
+    end
+    false
   end
 
   private
